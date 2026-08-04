@@ -9,7 +9,7 @@ description = "CLI that verifies Ed25519-signed compute-attestation records from
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "Rudrendu Paul" }]
+authors = [{ name = "Rudrendu Paul" }, { name = "Sourav Nandy" }]
 keywords = [
   "compute-attestation",
   "ai-governance",
@@ -45,6 +45,8 @@ dependencies = [
 Homepage = "https://github.com/RudrenduPaul/PaceProof#readme"
 Repository = "https://github.com/RudrenduPaul/PaceProof"
 Issues = "https://github.com/RudrenduPaul/PaceProof/issues"
+"Author - Rudrendu Paul" = "https://github.com/RudrenduPaul"
+"Author - Sourav Nandy" = "https://github.com/Sourav-nandy-ai"
 
 [project.scripts]
 paceproof = "paceproof_cli.cli:main"

@@ -1,0 +1,67 @@
+{
+  "name": "paceproof-cli",
+  "version": "0.1.0",
+  "description": "CLI + MCP server that verifies Ed25519-signed compute-attestation records from any provider and reports what compute was actually run, by whom, and whether every signature checks out. Read-only reporting layer -- does not sign or generate attestations.",
+  "keywords": [
+    "compute-attestation",
+    "ai-governance",
+    "cryptographic-verification",
+    "ed25519",
+    "cli",
+    "mcp",
+    "model-context-protocol",
+    "audit-trail",
+    "compute-governance",
+    "attestation-verification"
+  ],
+  "license": "MIT",
+  "author": "Rudrendu Paul",
+  "homepage": "https://github.com/RudrenduPaul/PaceProof#readme",
+  "bugs": {
+    "url": "https://github.com/RudrenduPaul/PaceProof/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RudrenduPaul/PaceProof.git",
+    "directory": "packages/cli-ts"
+  },
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "paceproof": "dist/bin.js",
+    "paceproof-cli": "dist/bin.js"
+  },
+  "files": [
+    "dist",
+    "schema"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint src test",
+    "typecheck": "tsc -p tsconfig.typecheck.json",
+    "test": "vitest run",
+    "pretest": "npm run build",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@noble/ed25519": "^2.1.0",
+    "@noble/hashes": "^1.5.0",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "commander": "^12.1.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.15.0",
+    "@types/node": "^22.10.1",
+    "eslint": "^9.15.0",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.16.0",
+    "vitest": "^4.1.10"
+  }
+}

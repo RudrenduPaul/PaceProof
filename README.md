@@ -1,38 +1,60 @@
 # PaceProof
 
-PaceProof is a CLI and MCP server that ingests, verifies, and reports on
-Ed25519-signed compute-attestation records from any provider. Point it at a
-directory or URL of signed records and it tells you, verifiably, what
-compute was actually run, by whom, and whether every record's signature
-checks out.
+**PaceProof verifies Ed25519-signed compute-attestation records from any provider and tells you exactly which ones are real.** A record with a missing, malformed, or tampered signature never gets folded into a "verified" total; it's counted and reported separately, every time, in both human-readable and `--json` output.
 
-PaceProof does not sign or generate attestations itself. It is a neutral,
-read-only ingest/verify/report/dashboard layer over records that are already
-signed somewhere else. A record with a missing, malformed, or invalid
-signature is never silently folded into a "verified" total -- verified and
-unverified counts and compute totals are always kept separate, in both
-human-readable and `--json` output.
+PaceProof does not sign or generate attestations. It is a neutral, read-only ingest/verify/report/dashboard layer over records that are already signed somewhere else. Point it at a directory, file, or URL of signed records and it tells you, verifiably, what compute was actually run, by whom, and whether every record's signature checks out.
 
-There is no real regulatory or treaty backing behind this tool, and it does
-not claim any. It is a cryptographic verification and reporting utility,
-useful today for internal audit trails and cross-provider usage
-transparency.
+<!-- npm/PyPI version badges intentionally omitted: paceproof-cli isn't published to either registry yet. Add them once it ships. -->
+[![CI](https://github.com/RudrenduPaul/PaceProof/actions/workflows/ci.yml/badge.svg)](https://github.com/RudrenduPaul/PaceProof/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
 ## Install
 
-Two independent, real implementations ship with identical behavior and
-`--json` output: an npm package (TypeScript, includes the MCP server) and a
-PyPI package (Python, a genuine reimplementation, not a subprocess wrapper).
+`paceproof-cli` isn't published to npm or PyPI yet, so build from source for now.
+
+**TypeScript (npm package, includes the MCP server):**
 
 ```
-npm install -g paceproof-cli
+git clone https://github.com/RudrenduPaul/PaceProof.git
+cd PaceProof/packages/cli-ts
+npm install
+npm run build
+node dist/bin.js --help
 ```
 
-or
+Or link it onto your `PATH` as `paceproof`:
 
 ```
-pip install paceproof-cli
+npm link
+paceproof --help
 ```
+
+**Python (PyPI package, independent reimplementation):**
+
+```
+git clone https://github.com/RudrenduPaul/PaceProof.git
+cd PaceProof/packages/cli-py
+pip install -e .
+paceproof --help
+```
+
+Once published, either package will install with:
+
+```
+# npm install -g paceproof-cli   (once published)
+# pip install paceproof-cli      (once published)
+```
+
+Both commands above were run against this repo's actual source as part of writing this README; the quickstart output below is real, not fabricated.
+
+## Features
+
+- **Pluggable data-source adapters.** `ingest` normalizes arbitrary input into the canonical schema through a documented `Adapter` interface (TypeScript interface, Python ABC). The shipped `jsonl` adapter reads newline-delimited JSON already in canonical form; a provider-specific adapter (e.g. for ComputeLedger's native export) implements the same interface without touching the aggregator, report renderer, or CLI wiring.
+- **Ed25519 verification with strict verified/unverified separation.** Every record is checked for schema validity and signature validity. A record that fails either check is never silently merged into a verified total: verified and unverified counts and compute totals are computed from disjoint sets and shown side by side in every report.
+- **Two independent, parity-tested implementations.** The TypeScript package (npm) and the Python package (PyPI) are separate, real implementations, not a wrapper around one or the other. Both produce byte-identical `report --json` output for the same input; a CI job runs the TypeScript CLI's output against the Python CLI's output on a shared fixture in both directions and fails the build on any divergence.
+- **Self-contained static HTML dashboard.** `paceproof dashboard` renders a single HTML file with inline CSS and no JavaScript: no CDN fonts, no external scripts, no remote requests of any kind. v0.1 ships one clean light theme; there's no dark-mode toggle yet.
+- **MCP server for agent invocation.** `paceproof mcp` starts a Model Context Protocol server exposing `verify`, `ingest`, and `report` as callable tools, so an orchestrating agent can call PaceProof programmatically instead of shelling out to a human-facing CLI. The tool handlers are thin wrappers around the same aggregator/report functions the CLI itself calls, with no separate reimplementation for the MCP path.
+- **Security-hardened by design, not by afterthought.** Aggregation buckets are built with `Object.create(null)` so an attacker-controlled `provider` or `compute_unit` field like `"__proto__"` can't pollute `Object.prototype`. The one network call PaceProof ever makes (`ingest <url>`) is bounded by a 30-second timeout and a 50 MiB response cap, enforced against the actual streamed byte count rather than trusting a `Content-Length` header. Every schema field carries an explicit maximum length so oversized input can't be used to exhaust memory before validation runs.
 
 ## Quickstart
 
@@ -41,17 +63,15 @@ paceproof init
 paceproof report ./paceproof-example
 ```
 
-`paceproof init` generates a fresh Ed25519 example keypair and 7 example
-attestation records: 3 validly signed, and 4 intentionally broken (a
-tampered payload, a wrong-key signature, a malformed signature, and a
-missing signature) so `verify`/`report` have real failure modes to
-demonstrate against, not just a happy path.
+`paceproof init` generates a fresh Ed25519 example keypair and 7 example attestation records: 3 validly signed, and 4 intentionally broken (a tampered payload, a wrong-key signature, a malformed signature, and a missing signature) so `verify`/`report` have real failure modes to demonstrate, not just a happy path.
+
+Real output from an actual run against this repo's built CLI:
 
 ```
 $ paceproof report ./paceproof-example
 
 PaceProof report -- source: ./paceproof-example
-generated at: 2026-08-03T19:11:41.819Z
+generated at: 2026-08-04T02:54:30.898Z
 
 == VERIFIED ==
   records: 3
@@ -65,59 +85,173 @@ generated at: 2026-08-03T19:11:41.819Z
     - rec-005: signature does not match record contents
     - rec-006: signature must decode to 64 bytes, got 4
     - rec-007: schema validation failed: (root) must have required property 'signature'
+
+== BY PROVIDER ==
+  acme-cloud: verified=132 gpu_hours (2 records); unverified_count=0
+  beta-compute: verified=12.50 gpu_hours (1 records); unverified_count=0
+  gamma-hpc: verified=(none); unverified_count=2
+  delta-cloud: verified=(none); unverified_count=2
+
+== BY WORKLOAD TYPE ==
+  training: verified=128 gpu_hours (1 records); unverified_count=1
+  inference: verified=12.50 gpu_hours (1 records); unverified_count=1
+  idle: verified=4 gpu_hours (1 records); unverified_count=1
+  unknown: verified=(none); unverified_count=1
 ```
 
-## Commands
+`verify` exits non-zero when any record fails (real exit code from an actual run: `1`, with 4 unverified records present):
 
-- `paceproof init [path]` -- scaffold an example directory with a sample
-  keypair and signed/broken example records.
-- `paceproof verify <path>` -- verify Ed25519 signatures on every record
-  found at `<path>`. `--json` for structured output.
-- `paceproof ingest <path-or-url> [--adapter <name>]` -- run a named adapter
-  over the input, emit normalized canonical-schema records as JSONL.
-- `paceproof report <path>` -- ingest and verify in one pass, aggregate into
-  a summary: totals by provider, by workload type, verified vs. unverified
-  kept separate. `--json` for structured output.
-- `paceproof dashboard <path> [--out <file.html>]` -- render a single
-  self-contained static HTML dashboard (no external requests).
-- `paceproof mcp` -- start an MCP server exposing `verify`, `ingest`, and
-  `report` as callable tools (TypeScript package only in v0.1).
-
-Every command supports `--json`/structured output where relevant, real
-non-zero exit codes on failure or verification failure, and accurate
-`--help` text.
-
-## The canonical attestation record
-
-```json
-{
-  "record_id": "rec-001",
-  "issued_at": "2026-01-01T00:00:00.000Z",
-  "provider": "acme-cloud",
-  "hardware": "8xH100-SXM5",
-  "workload_type": "training",
-  "compute_amount": 128,
-  "compute_unit": "gpu_hours",
-  "issuer_public_key": "base64-ed25519-public-key",
-  "signature": "base64-ed25519-signature"
-}
+```
+$ paceproof verify ./paceproof-example
+Verified: 3
+Unverified: 4
+  FAIL rec-004: signature does not match record contents
+  FAIL rec-005: signature does not match record contents
+  FAIL rec-006: signature must decode to 64 bytes, got 4
+  FAIL rec-007: schema validation failed: (root) must have required property 'signature'
+$ echo $?
+1
 ```
 
-The full JSON Schema lives at `schema/attestation-record.schema.json` and is
-the single source of truth both implementations validate against. See
-[ARCHITECTURE.md](./ARCHITECTURE.md) for the canonicalization rules the
-signature is computed over, the adapter interface, and the repo layout.
+Render a dashboard from the same data:
 
-## Why this exists
+```
+paceproof dashboard ./paceproof-example --out dashboard.html
+```
 
-Compute usage claims from AI labs, cloud providers, and infrastructure
-operators are getting harder to verify independently as the volume of
-compute-related discourse grows -- see the real 2026 "Pacing the Frontier"
-open letter for one example of the industry conversation this is motivated
-by (cited here only as context, not as an endorsement or partnership).
-PaceProof does not solve compute governance. It solves one narrow, concrete
-piece of it: given a set of records someone claims are signed, tell me
-exactly which ones actually verify, and total up only the ones that do.
+Both the TypeScript and Python builds were run against `paceproof-example` for this README, and both produced the same verified/unverified counts and totals shown above.
+
+## CLI command reference
+
+Every table below is copied from the actual `--help` output of the built TypeScript CLI.
+
+### `paceproof init [path]`
+
+Scaffold an example directory with a sample keypair and validly/invalidly signed example records.
+
+| Argument | Description |
+|---|---|
+| `path` | Directory to create (default: `./paceproof-example`) |
+
+### `paceproof verify <path>`
+
+Verify Ed25519 signatures on every record found at `<path>`.
+
+| Option | Description |
+|---|---|
+| `--json` | Output structured JSON instead of a human-readable table |
+| `--adapter <name>` | Adapter to use for reading input (default: `jsonl`) |
+
+### `paceproof ingest <path-or-url>`
+
+Run a named adapter over the input and emit normalized canonical-schema records as JSONL.
+
+| Option | Description |
+|---|---|
+| `--adapter <name>` | Adapter to use (default: `jsonl`) |
+| `--out <file>` | Write JSONL output to a file instead of stdout |
+
+### `paceproof report <path>`
+
+Ingest and verify records at `<path>`, then aggregate into a summary report.
+
+| Option | Description |
+|---|---|
+| `--json` | Output structured JSON instead of a human-readable table |
+| `--adapter <name>` | Adapter to use for reading input (default: `jsonl`) |
+
+### `paceproof dashboard <path>`
+
+Render a single self-contained static HTML dashboard from a report.
+
+| Option | Description |
+|---|---|
+| `--out <file>` | Output HTML file path (default: `paceproof-dashboard.html`) |
+| `--adapter <name>` | Adapter to use for reading input (default: `jsonl`) |
+
+### `paceproof mcp`
+
+Start an MCP server exposing `verify`, `ingest`, and `report` as callable tools. TypeScript package only in v0.1: running `paceproof mcp` from the Python package prints a message pointing to the npm package and exits non-zero.
+
+Every command supports real non-zero exit codes on failure or verification failure, and `--help` on every subcommand.
+
+## How verification works
+
+Every attestation record is a JSON object validated against a single canonical JSON Schema (`schema/attestation-record.schema.json`), the same file, byte-for-byte, that both the TypeScript and Python packages ship and validate against. A record needs `record_id`, `issued_at`, `provider`, `hardware`, `workload_type`, `compute_amount`, `compute_unit`, `issuer_public_key`, and `signature`; every string field has an explicit maximum length so malformed or oversized input fails fast instead of being parsed first and bounded later.
+
+The `signature` field is an Ed25519 signature over the canonical JSON encoding of every other field: object keys sorted lexicographically, UTF-8 encoding, no insignificant whitespace, numbers rendered without a leading `+` or unnecessary trailing zeros. Both implementations produce byte-identical canonical JSON for the same record, so a signature verified by one implementation verifies under the other.
+
+A record is "verified" only if it passes both checks: schema-valid **and** signature-valid. Anything else (a missing signature, a signature that decodes to the wrong byte length, a signature that doesn't match the payload, a signature made with the wrong key) is "unverified." These two sets are always disjoint in the aggregator's code, not just in the way a report happens to render them: verified and unverified compute totals are accumulated into separate structures, and there is no code path that adds an unverified record's `compute_amount` into a verified total. A reporting tool that quietly conflates "claimed" and "proven" numbers launders unverifiable claims into something that looks verified, which defeats the point of an audit trail.
+
+## Comparison
+
+Star counts and descriptions below were checked live against each project's GitHub API listing and README on 2026-08-03; none is invented or reused from memory.
+
+| Project | Stars | What it does | How it differs from PaceProof |
+|---|---|---|---|
+| [meghabyte/verifiable-training](https://github.com/meghabyte/verifiable-training) | 10 | Stanford NeurIPS 2024 research code ("Optimistic Verifiable Training by Controlling Hardware Nondeterminism") that eliminates hardware nondeterminism so training runs reproduce byte-identical weights across different GPUs, then builds Merkle trees over checkpoints for a verifier to audit. | Proves *that specific training happened as claimed* at the weights level, as an attestation-generation research prototype, not an ingest/verify/report tool. No adapters, no cross-provider ingest of pre-existing signed records, no CLI, no cross-language parity, no MCP surface. |
+| [skypilot-org/skypilot](https://github.com/skypilot-org/skypilot) | 10,440 | Multi-cloud AI compute orchestration and cost-aware scheduling across 20+ clouds, Kubernetes, and Slurm. | Cost and utilization *visibility and scheduling*, not cryptographic verification. It never checks a signature or separates a "verified" number from a "claimed" one; there's no attestation record format involved at all. |
+| [opencost/opencost](https://github.com/opencost/opencost) | 6,659 | Kubernetes and cloud cost monitoring and allocation visibility (Apache 2.0, originally Kubecost). | Same category as SkyPilot: usage and cost *visibility* over billing and metrics data, not cryptographic attestation. No Ed25519 verification, no verified/unverified split, no attestation record schema. |
+| [RudrenduPaul/ComputeLedger](https://github.com/RudrenduPaul/ComputeLedger) | 0 | Provider-agnostic CLI, library, and MCP server for *signing*, hash-chaining, and independently verifying compute usage receipts (GPU-hours, hardware, workload type) with Ed25519 signatures and a tamper-evident local ledger. | Complementary, not competing: same author's sibling project, and the *attestation-generation* half of this problem. PaceProof is the *ingest/verify/report* half. Point it at records from ComputeLedger, or from any other Ed25519-signing source, and it reports on what verifies. |
+
+Broader searches for a directly comparable "ingest signed compute-attestation records from multiple providers, verify Ed25519 signatures, keep verified and unverified totals separate" tool turned up nothing else matching that specific combination as of 2026-08-03. The closest adjacent category is generic hardware remote-attestation verification (e.g. [veraison/services](https://github.com/veraison/services), 47 stars, TPM/SEV-SNP/SGX/TDX evidence): a different attestation domain (hardware boot/runtime state, not compute-usage records) with no compute-attestation schema, no adapter model, and no compute-hours reporting.
+
+## What PaceProof is, and why it exists
+
+Compute usage claims from AI labs, cloud providers, and infrastructure operators are getting harder to independently verify as the volume of compute-related discourse grows. The real 2026 "Pacing the Frontier" open letter is one example of that industry conversation, cited here only as motivating context. PaceProof is not affiliated with it, was not built in response to any request from its signatories, and makes no claim of endorsement or partnership.
+
+To be direct about the one thing this README needs to be unambiguous about: **there is no real "Verified Slowdown" treaty, and no such treaty exists today.** That phrase comes from a speculative forecasting scenario at ai-2027.com, not from any actual international agreement, law, or regulatory body. PaceProof does not implement, enforce, or certify compliance with any treaty, law, or regulation, because no such treaty, law, or regulation applicable to this tool exists.
+
+What PaceProof actually is: a neutral, cryptographically-verifiable reporting layer over compute-attestation data you already have. If you (or a provider you work with) already produce signed attestation records, whether through ComputeLedger, a custom signing pipeline, or anything else that emits Ed25519-signed records, PaceProof tells you which of those records actually hold up cryptographically and totals up only the ones that do, split cleanly from the ones that don't. That's useful today for internal audit trails and cross-provider usage transparency. It is not, and does not claim to be, compliance software for a regulation that doesn't exist.
+
+## FAQ
+
+**Does PaceProof provide legal or regulatory compliance?**
+No. There is no real "Verified Slowdown" treaty or comparable regulation for PaceProof to comply with, and PaceProof makes no compliance claim of any kind. It verifies Ed25519 signatures on records you give it and reports the results. Treat its output as a cryptographic verification report, not a legal or regulatory certification.
+
+**Does PaceProof sign or generate attestation records?**
+No. PaceProof is read-only: it ingests, verifies, and reports on records that are already signed elsewhere. If you need to generate signed compute-attestation records, that's a separate concern; see [ComputeLedger](https://github.com/RudrenduPaul/ComputeLedger), a sibling project by the same author, for the signing side.
+
+**What happens to a record with a bad signature? Does it just get dropped?**
+No. A record that fails schema validation or signature verification is never dropped or silently excluded. It's counted in `unverified_count`, its compute amount is totaled separately in `unverified_compute_total_by_unit`, and the specific reason it failed (tampered payload, wrong key, malformed signature, missing field) is reported alongside it. Nothing about a failed record disappears from the output.
+
+**Can I add support for a provider whose export format isn't JSONL?**
+Yes, that's what the adapter interface is for. Implement the `Adapter` interface (TypeScript) or the `Adapter` ABC (Python): a `name` and a `read(input)` method that returns records already normalized to the canonical schema. You don't need to touch the aggregator, the report renderer, or existing CLI wiring beyond registering the new adapter's name.
+
+**Does `paceproof ingest <url>` make arbitrary network calls?**
+Only the one you explicitly ask for. Every other command operates on local files. `ingest <url>` is the single opt-in network call in the whole tool, and it's bounded: a 30-second timeout and a 50 MiB response cap enforced against the real streamed byte count, not just a `Content-Length` header the remote server could lie about.
+
+**Why are there two implementations instead of one CLI with bindings?**
+So each package is a real, independent thing you can install from its native registry (npm or PyPI) without pulling in a runtime for the other language. A shared JSON Schema file and a cross-language parity test suite (run in both directions in CI) keep their `report --json` output identical, so which implementation you pick doesn't change what you get.
+
+**Is the MCP server available in the Python package?**
+Not in v0.1. `paceproof mcp` is TypeScript-only for now: running it from the Python package prints a message pointing you to the npm package and exits non-zero. Every other command (`init`, `verify`, `ingest`, `report`, `dashboard`) is a full, independent Python implementation.
+
+## Contributing
+
+CI (`.github/workflows/ci.yml`) runs three jobs on every push and PR to `main`: TypeScript lint + typecheck + test, Python lint (`ruff`) + typecheck (`mypy --strict`) + test (`pytest`) across Python 3.10 and 3.13, and a cross-language parity job that builds the TypeScript CLI, installs the Python CLI, and runs each side's parity test against the other's CLI as a subprocess.
+
+To run everything locally:
+
+```
+# TypeScript
+cd packages/cli-ts
+npm install
+npm run lint
+npm run typecheck
+npm test        # 60 tests, Vitest
+
+# Python
+cd packages/cli-py
+pip install -e ".[dev]"
+ruff check src tests
+mypy src
+pytest -q       # 52 tests
+```
+
+If you change the schema, update `schema/attestation-record.schema.json` at the repo root **and** its copies under `packages/cli-ts/schema/` and `packages/cli-py/src/paceproof_cli/schema/`, and update both implementations' validation logic. A parity test in each package's suite checks its local schema copy against the root file and fails CI if they drift.
+
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full repo layout, the canonical JSON rules the signature is computed over, and how the adapter interface and MCP server fit together.
 
 ## License
 

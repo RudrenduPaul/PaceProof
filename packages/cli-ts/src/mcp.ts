@@ -2,10 +2,38 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { writeFileSync } from 'node:fs';
+import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { getAdapter } from './adapters/jsonl.js';
 import { buildReport } from './report.js';
 
 const VERSION = '0.1.0';
+
+/**
+ * The MCP `ingest` tool's `out` parameter is a write primitive an
+ * orchestrating agent can invoke autonomously -- unlike the CLI's `--out`
+ * flag (typed directly by the operator), the MCP path can be reached by an
+ * agent acting on instructions from content it processed elsewhere (e.g. a
+ * prompt-injection payload in a webpage or file the agent also has open).
+ * Without a bound, `out` would let that agent overwrite any file the
+ * process has write access to (dotfiles, shell configs, other projects'
+ * source). This confines writes to the directory tree the MCP server was
+ * started in: no absolute paths, no `../` escapes.
+ */
+export function resolveSafeOutputPath(out: string, cwd: string = process.cwd()): string {
+  if (isAbsolute(out)) {
+    throw new Error(
+      `Refusing to write to "${out}": the MCP "out" parameter must be a relative path, not absolute.`,
+    );
+  }
+  const resolved = resolve(cwd, out);
+  const rel = relative(cwd, resolved);
+  if (rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+    throw new Error(
+      `Refusing to write to "${out}": it resolves outside the current working directory (${cwd}).`,
+    );
+  }
+  return resolved;
+}
 
 /**
  * Starts an MCP server exposing verify/ingest/report as callable tools, so
@@ -52,15 +80,22 @@ export async function startMcpServer(): Promise<void> {
       inputSchema: {
         path: z.string().describe('File, directory, or URL to ingest'),
         adapter: z.string().optional().describe('Adapter name to use (default: jsonl)'),
-        out: z.string().optional().describe('If set, write JSONL output to this file instead of returning it inline'),
+        out: z
+          .string()
+          .optional()
+          .describe(
+            'If set, write JSONL output to this file instead of returning it inline. Must be a relative path ' +
+              'that stays within the current working directory (no absolute paths, no "../" traversal).',
+          ),
       },
     },
     async ({ path, adapter, out }) => {
       const records = await getAdapter(adapter ?? 'jsonl').read(path);
       const jsonl = records.map((r) => JSON.stringify(r)).join('\n') + (records.length > 0 ? '\n' : '');
       if (out) {
-        writeFileSync(out, jsonl, 'utf-8');
-        return { content: [{ type: 'text', text: `Wrote ${records.length} record(s) to ${out}` }] };
+        const safeOut = resolveSafeOutputPath(out);
+        writeFileSync(safeOut, jsonl, 'utf-8');
+        return { content: [{ type: 'text', text: `Wrote ${records.length} record(s) to ${safeOut}` }] };
       }
       return { content: [{ type: 'text', text: jsonl || '(no records found)' }] };
     },

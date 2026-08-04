@@ -1,7 +1,60 @@
 import { readFileSync, statSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { Readable } from 'node:stream';
 import type { Adapter } from './types.js';
 import type { RawRecord } from '../types.js';
+
+// Bounds for the one network call PaceProof ever makes (`ingest <url>`),
+// which fetches whatever the operator points it at -- possibly a
+// third-party or compromised endpoint. Without a timeout a hung connection
+// blocks the CLI/MCP call forever; without a body-size cap an
+// attacker-controlled or misbehaving server can exhaust memory by streaming
+// an unbounded response.
+const INGEST_URL_TIMEOUT_MS = 30_000;
+const INGEST_URL_MAX_BYTES = 50 * 1024 * 1024; // 50 MiB
+
+async function fetchUrlWithBounds(url: string): Promise<string> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), INGEST_URL_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) {
+      throw new Error(`Failed to fetch ${url}: HTTP ${res.status} ${res.statusText}`);
+    }
+    const contentLength = res.headers.get('content-length');
+    if (contentLength && Number(contentLength) > INGEST_URL_MAX_BYTES) {
+      throw new Error(
+        `Refusing to fetch ${url}: response is ${contentLength} bytes, exceeds the ${INGEST_URL_MAX_BYTES}-byte limit`,
+      );
+    }
+    if (!res.body) {
+      return await res.text();
+    }
+    // Stream via Node's Readable rather than the raw WHATWG reader so the
+    // running byte count can abort the download before it's fully buffered
+    // -- protects against a response with no (or a lying) Content-Length
+    // header, not just an honestly-declared oversized one.
+    const nodeStream = Readable.fromWeb(res.body);
+    const chunks: Buffer[] = [];
+    let total = 0;
+    for await (const chunk of nodeStream as AsyncIterable<Buffer>) {
+      total += chunk.length;
+      if (total > INGEST_URL_MAX_BYTES) {
+        nodeStream.destroy();
+        throw new Error(`Refusing to fetch ${url}: response exceeded the ${INGEST_URL_MAX_BYTES}-byte limit`);
+      }
+      chunks.push(chunk);
+    }
+    return Buffer.concat(chunks).toString('utf-8');
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error(`Failed to fetch ${url}: request timed out after ${INGEST_URL_TIMEOUT_MS}ms`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 function parseJsonlText(text: string, sourceLabel: string): RawRecord[] {
   const records: RawRecord[] = [];
@@ -44,12 +97,10 @@ export const jsonlAdapter: Adapter = {
   async read(input: string): Promise<RawRecord[]> {
     if (input.startsWith('http://') || input.startsWith('https://')) {
       // The only network call in PaceProof: an explicit `ingest <url>`
-      // invocation the user typed themselves.
-      const res = await fetch(input);
-      if (!res.ok) {
-        throw new Error(`Failed to fetch ${input}: HTTP ${res.status} ${res.statusText}`);
-      }
-      const text = await res.text();
+      // invocation the user typed themselves. Bounded by timeout and
+      // response size (see fetchUrlWithBounds) so a slow or malicious
+      // endpoint can't hang the process or exhaust memory.
+      const text = await fetchUrlWithBounds(input);
       return parseJsonlText(text, input);
     }
 

@@ -54,10 +54,22 @@ export function summarize(outcomes: VerificationOutcome[]): ReportSummary {
   const verified = outcomes.filter((o): o is Extract<VerificationOutcome, { valid: true }> => o.valid);
   const unverified = outcomes.filter((o): o is Extract<VerificationOutcome, { valid: false }> => !o.valid);
 
-  const verifiedComputeTotalByUnit: Record<string, number> = {};
-  const unverifiedComputeTotalByUnit: Record<string, number> = {};
-  const byProvider: ReportSummary['by_provider'] = {};
-  const byWorkloadType: ReportSummary['by_workload_type'] = {};
+  // Every key below (compute_unit, provider, workload_type) comes straight
+  // from attacker/issuer-controlled record content -- some of it (provider,
+  // compute_unit) never even has to pass signature verification, since
+  // unverified records are aggregated too. A plain `{}` object literal
+  // inherits from Object.prototype, so a record with e.g.
+  // `"provider": "__proto__"` would resolve `byProvider["__proto__"]` to the
+  // live Object.prototype object instead of a fresh bucket, and the
+  // `.unverified_count += 1` a few lines down would then write a new
+  // enumerable `unverified_count` property directly onto Object.prototype --
+  // a real, process-wide CWE-1321 prototype-pollution bug, not merely a
+  // crash. Object.create(null) gives each map no prototype at all, so
+  // "__proto__"/"constructor"/"prototype" behave as ordinary string keys.
+  const verifiedComputeTotalByUnit: Record<string, number> = Object.create(null) as Record<string, number>;
+  const unverifiedComputeTotalByUnit: Record<string, number> = Object.create(null) as Record<string, number>;
+  const byProvider: ReportSummary['by_provider'] = Object.create(null) as ReportSummary['by_provider'];
+  const byWorkloadType: ReportSummary['by_workload_type'] = Object.create(null) as ReportSummary['by_workload_type'];
 
   for (const outcome of verified) {
     const r = outcome.record;

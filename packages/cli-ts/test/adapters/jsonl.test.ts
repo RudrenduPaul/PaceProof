@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi, type MockInstance } fr
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { jsonlAdapter, getAdapter } from '../../src/adapters/jsonl.js';
 
 describe('jsonlAdapter', () => {
@@ -53,6 +55,43 @@ describe('jsonlAdapter', () => {
     writeFileSync(file, '{"a":1}\n[1,2,3]\n"hello"\n{"a":2}\n');
     const records = await jsonlAdapter.read(file);
     expect(records).toEqual([{ a: 1 }, { a: 2 }]);
+  });
+});
+
+describe('jsonlAdapter over http(s)', () => {
+  let server: Server;
+  let baseUrl: string;
+
+  afterEach(async () => {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+
+  it('reads records from a URL', async () => {
+    server = createServer((_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/jsonl' });
+      res.end('{"a":1}\n{"a":2}\n');
+    });
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/records.jsonl`;
+
+    const records = await jsonlAdapter.read(baseUrl);
+    expect(records).toEqual([{ a: 1 }, { a: 2 }]);
+  });
+
+  it('refuses a response whose declared Content-Length exceeds the size cap instead of buffering it', async () => {
+    const hugeSize = 200 * 1024 * 1024; // 200 MiB, well over the 50 MiB cap
+    server = createServer((_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/jsonl', 'content-length': String(hugeSize) });
+      // Deliberately never writes hugeSize bytes -- the adapter must reject
+      // based on the declared Content-Length before it starts buffering, so
+      // ending the response short (instead of hanging the connection open)
+      // still proves the check runs before any body is consumed.
+      res.end('{"a":1}\n');
+    });
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/huge.jsonl`;
+
+    await expect(jsonlAdapter.read(baseUrl)).rejects.toThrow(/exceeds the .* limit/);
   });
 });
 

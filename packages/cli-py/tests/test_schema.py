@@ -55,3 +55,20 @@ def test_rejects_a_malformed_issued_at() -> None:
     record = {**VALID_RECORD, "issued_at": "not-a-date"}
     result = validate_attestation_record(record)
     assert result.valid is False
+
+
+def test_rejects_absurdly_long_free_text_fields() -> None:
+    # A malicious or compromised record source (a third-party provider's
+    # export, or the response to `ingest <url>`) could otherwise embed a
+    # multi-megabyte string in any of these fields.
+    huge_string = "a" * 10_000_000  # 10 MB in a single field
+    record = {**VALID_RECORD, "provider": huge_string}
+    result = validate_attestation_record(record)
+    assert result.valid is False
+
+
+def test_rejects_issuer_public_key_far_longer_than_any_real_ed25519_value() -> None:
+    huge_base64 = "QQ==" * 100  # way past the 44-char real length, still valid base64 shape
+    record = {**VALID_RECORD, "issuer_public_key": huge_base64}
+    result = validate_attestation_record(record)
+    assert result.valid is False

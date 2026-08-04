@@ -20,6 +20,7 @@
     "record_id": {
       "type": "string",
       "minLength": 1,
+      "maxLength": 256,
       "description": "Unique identifier for this attestation record, assigned by the issuing provider."
     },
     "issued_at": {
@@ -30,11 +31,13 @@
     "provider": {
       "type": "string",
       "minLength": 1,
+      "maxLength": 256,
       "description": "Free-text identifier for the issuing provider, e.g. \"computeledger\" or \"acme-cloud\"."
     },
     "hardware": {
       "type": "string",
       "minLength": 1,
+      "maxLength": 512,
       "description": "Hardware descriptor string, e.g. \"8xH100-SXM5\"."
     },
     "workload_type": {
@@ -44,22 +47,26 @@
     "compute_amount": {
       "type": "number",
       "minimum": 0,
+      "maximum": 1e15,
       "description": "Amount of compute in compute_unit's units."
     },
     "compute_unit": {
       "type": "string",
       "minLength": 1,
+      "maxLength": 128,
       "description": "Unit-agnostic by design, e.g. \"gpu_hours\" or \"teraflop_seconds\", so any provider's native unit works."
     },
     "issuer_public_key": {
       "type": "string",
       "pattern": "^[A-Za-z0-9+/]+=*$",
-      "description": "Base64-encoded Ed25519 public key of the issuer."
+      "maxLength": 128,
+      "description": "Base64-encoded Ed25519 public key of the issuer. A valid Ed25519 key is always 44 base64 characters (32 bytes); this cap just bounds worst-case input size before the exact-length check runs."
     },
     "signature": {
       "type": "string",
       "pattern": "^[A-Za-z0-9+/]+=*$",
-      "description": "Base64-encoded Ed25519 signature over the canonical JSON encoding of every other field (record_id, issued_at, provider, hardware, workload_type, compute_amount, compute_unit, issuer_public_key), with object keys sorted lexicographically and no insignificant whitespace."
+      "maxLength": 128,
+      "description": "Base64-encoded Ed25519 signature over the canonical JSON encoding of every other field (record_id, issued_at, provider, hardware, workload_type, compute_amount, compute_unit, issuer_public_key), with object keys sorted lexicographically and no insignificant whitespace. A valid Ed25519 signature is always 88 base64 characters (64 bytes); this cap just bounds worst-case input size before the exact-length check runs."
     }
   }
 }

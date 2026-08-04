@@ -89,6 +89,37 @@ describe('summarize', () => {
     expect(summary.by_provider).toEqual({});
   });
 
+  it('does not pollute Object.prototype via a crafted "__proto__" provider on an unverified record', () => {
+    // Reachable with zero valid signature: an unverified (schema-invalid)
+    // record whose provider/compute_unit is a dangerous key name.
+    const before = Object.prototype.hasOwnProperty.call(Object.prototype, 'unverified_count');
+    const outcomes = verifyRecords([
+      { record_id: 'evil', provider: '__proto__', compute_unit: '__proto__', compute_amount: 1 },
+    ]);
+    const summary = summarize(outcomes);
+
+    expect(Object.prototype.hasOwnProperty.call(Object.prototype, 'unverified_count')).toBe(before);
+    expect(({} as Record<string, unknown>).unverified_count).toBeUndefined();
+    // The record is still tracked under its literal "__proto__" key, not silently dropped.
+    expect(summary.by_provider['__proto__']?.unverified_count).toBe(1);
+    expect(summary.unverified_compute_total_by_unit['__proto__']).toBe(1);
+  });
+
+  it('does not pollute Object.prototype via "constructor"/"__proto__" on a verified record', () => {
+    const keypair = generateKeypair();
+    const raw = makeSigned(keypair.privateKeyBase64, {
+      issuer_public_key: keypair.publicKeyBase64,
+      provider: 'constructor',
+      compute_unit: '__proto__',
+      compute_amount: 7,
+    });
+    const summary = summarize(verifyRecords([raw]));
+
+    expect(({} as Record<string, unknown>).unverified_count).toBeUndefined();
+    expect(summary.verified_compute_total_by_unit['__proto__']).toBe(7);
+    expect(summary.by_provider['constructor']?.verified[0]?.compute_amount_total).toBe(7);
+  });
+
   it('aggregates by workload_type independently of provider', () => {
     const keypair = generateKeypair();
     const training = makeSigned(keypair.privateKeyBase64, {

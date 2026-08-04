@@ -87,6 +87,21 @@ def test_summarize_handles_zero_records() -> None:
     assert summary["by_provider"] == {}
 
 
+def test_summarize_handles_a_proto_style_provider_key_safely() -> None:
+    # Python dicts have no prototype chain, so a key literally named
+    # "__proto__" is just an ordinary string key here -- this mirrors the
+    # cross-language parity guarantee after packages/cli-ts/src/aggregator.ts
+    # was hardened against a real prototype-pollution bug for the same input
+    # (a plain JS object literal treats "__proto__" specially; a Python dict
+    # does not).
+    outcomes = verify_records(
+        [{"record_id": "evil", "provider": "__proto__", "compute_unit": "__proto__", "compute_amount": 1}]
+    )
+    summary = summarize(outcomes)
+    assert summary["by_provider"]["__proto__"]["unverified_count"] == 1
+    assert summary["unverified_compute_total_by_unit"]["__proto__"] == 1
+
+
 def test_summarize_aggregates_by_workload_type_independently() -> None:
     keypair = generate_keypair()
     training = _make_signed(

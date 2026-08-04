@@ -1,7 +1,7 @@
 """paceproof CLI entry point (Python implementation).
 
 Same commands, same --json output shape as the TypeScript implementation --
-see ARCHITECTURE.md and CLAUDE.md's "Parity" engineering standard. `mcp` is
+see ARCHITECTURE.md's "Parity" engineering standard. `mcp` is
 the one exception: it is a TypeScript-only command in v0.1 (see
 ARCHITECTURE.md's "MCP server" section) -- this package's `mcp` subcommand
 exists only to give a clear, honest error rather than silently doing nothing.

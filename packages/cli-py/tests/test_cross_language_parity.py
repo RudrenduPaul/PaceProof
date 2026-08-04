@@ -1,7 +1,7 @@
 """Cross-implementation parity: the Python and TypeScript CLIs must produce
 structurally identical `report --json` output for the same fixture input.
 
-This is the concrete test CLAUDE.md's "Parity" engineering standard requires:
+This is the concrete test the project's parity engineering standard requires:
 a divergence between the two implementations is a shippable bug, not a
 documentation footnote. It runs the real built TypeScript CLI as a
 subprocess (packages/cli-ts/dist/bin.js) and compares its report against the

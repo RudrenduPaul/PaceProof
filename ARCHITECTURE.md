@@ -53,7 +53,6 @@ PaceProof/
   ARCHITECTURE.md
   README.md
   LICENSE
-  CLAUDE.md                               # locked product/architecture spec (do not edit casually)
 ```
 
 ## Why a copy of the schema in each package

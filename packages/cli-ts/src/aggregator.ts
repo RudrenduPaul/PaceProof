@@ -46,9 +46,9 @@ function addToBucketList(buckets: AggregateBucket[], unit: string, amount: numbe
 /**
  * Builds the report summary from verification outcomes. Verified and
  * unverified totals are computed from disjoint arrays and never merged --
- * this is the security invariant from CLAUDE.md, enforced structurally by
- * never adding an unverified record's compute_amount to any verified_*
- * accumulator anywhere in this function.
+ * this is a hard security invariant, enforced structurally by never adding
+ * an unverified record's compute_amount to any verified_* accumulator
+ * anywhere in this function.
  */
 export function summarize(outcomes: VerificationOutcome[]): ReportSummary {
   const verified = outcomes.filter((o): o is Extract<VerificationOutcome, { valid: true }> => o.valid);

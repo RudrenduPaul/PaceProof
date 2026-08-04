@@ -1,9 +1,9 @@
 """Verifies and aggregates records. Mirrors packages/cli-ts/src/aggregator.ts.
 
-Security invariant (non-negotiable, see CLAUDE.md): a record with a missing,
-malformed, or invalid signature is never silently included in "verified"
-aggregate totals. Verified and unverified totals are computed from disjoint
-lists and never merged anywhere in this module.
+Security invariant (non-negotiable): a record with a missing, malformed, or
+invalid signature is never silently included in "verified" aggregate totals.
+Verified and unverified totals are computed from disjoint lists and never
+merged anywhere in this module.
 """
 
 from __future__ import annotations

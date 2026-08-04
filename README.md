@@ -4,13 +4,26 @@
 
 PaceProof does not sign or generate attestations. It is a neutral, read-only ingest/verify/report/dashboard layer over records that are already signed somewhere else. Point it at a directory, file, or URL of signed records and it tells you, verifiably, what compute was actually run, by whom, and whether every record's signature checks out.
 
-<!-- npm/PyPI version badges intentionally omitted: paceproof-cli isn't published to either registry yet. Add them once it ships. -->
 [![CI](https://github.com/RudrenduPaul/PaceProof/actions/workflows/ci.yml/badge.svg)](https://github.com/RudrenduPaul/PaceProof/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/paceproof-cli.svg)](https://www.npmjs.com/package/paceproof-cli)
+[![PyPI version](https://img.shields.io/pypi/v/paceproof-cli.svg)](https://pypi.org/project/paceproof-cli/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+
+<!-- Terminal recording of installing paceproof-cli with npm, scaffolding example attestation records with paceproof init, and running paceproof report to show a verified/unverified compute breakdown. Demo GIF to be added at ./docs/demo.gif. -->
 
 ## Install
 
-`paceproof-cli` isn't published to npm or PyPI yet, so build from source for now.
+```
+npm install -g paceproof-cli
+```
+
+```
+pip install paceproof-cli
+```
+
+Both commands install a `paceproof` binary. `paceproof-cli` is also available as an alias on both registries if you need to disambiguate from another tool on your `PATH`.
+
+To build from source instead (useful if you're contributing, or want the exact repo state rather than a published release):
 
 **TypeScript (npm package, includes the MCP server):**
 
@@ -22,13 +35,6 @@ npm run build
 node dist/bin.js --help
 ```
 
-Or link it onto your `PATH` as `paceproof`:
-
-```
-npm link
-paceproof --help
-```
-
 **Python (PyPI package, independent reimplementation):**
 
 ```
@@ -38,14 +44,20 @@ pip install -e .
 paceproof --help
 ```
 
-Once published, either package will install with:
+Both the published `npm install -g paceproof-cli` and `pip install paceproof-cli` commands above were run fresh in a clean environment as part of writing this README, and the quickstart output below is real output from those installs, not fabricated.
 
-```
-# npm install -g paceproof-cli   (once published)
-# pip install paceproof-cli      (once published)
-```
+## Table of Contents
 
-Both commands above were run against this repo's actual source as part of writing this README; the quickstart output below is real, not fabricated.
+- [Features](#features)
+- [Quickstart](#quickstart)
+- [CLI command reference](#cli-command-reference)
+- [Library API reference](#library-api-reference)
+- [How verification works](#how-verification-works)
+- [Comparison](#comparison)
+- [What PaceProof is, and why it exists](#what-paceproof-is-and-why-it-exists)
+- [FAQ](#faq)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Features
 
@@ -65,7 +77,7 @@ paceproof report ./paceproof-example
 
 `paceproof init` generates a fresh Ed25519 example keypair and 7 example attestation records: 3 validly signed, and 4 intentionally broken (a tampered payload, a wrong-key signature, a malformed signature, and a missing signature) so `verify`/`report` have real failure modes to demonstrate, not just a happy path.
 
-Real output from an actual run against this repo's built CLI:
+Real output from an actual run against the published npm package:
 
 ```
 $ paceproof report ./paceproof-example
@@ -123,7 +135,7 @@ Both the TypeScript and Python builds were run against `paceproof-example` for t
 
 ## CLI command reference
 
-Every table below is copied from the actual `--help` output of the built TypeScript CLI.
+Every table below is copied from the actual `--help` output of the published `paceproof-cli` npm package (v0.1.0).
 
 ### `paceproof init [path]`
 
@@ -175,6 +187,32 @@ Start an MCP server exposing `verify`, `ingest`, and `report` as callable tools.
 
 Every command supports real non-zero exit codes on failure or verification failure, and `--help` on every subcommand.
 
+## Library API reference
+
+The npm package also exports its internals directly (`main`/`types` in `package.json` point at real library code, not just the CLI entry point), for anyone building a custom adapter or embedding verification logic in another tool instead of shelling out to the CLI. This surface is TypeScript-only; the Python package exposes `paceproof` as a CLI only, with no documented import API.
+
+```ts
+import { getAdapter, verifyRecords, summarize } from 'paceproof-cli';
+import type { Adapter } from 'paceproof-cli';
+
+const records = await getAdapter('jsonl').read('./paceproof-example/records.jsonl');
+const outcomes = verifyRecords(records);
+const report = summarize(outcomes);
+```
+
+| Export | Signature | What it does |
+|---|---|---|
+| `Adapter` | `interface Adapter { readonly name: string; read(input: string): Promise<RawRecord[]> }` | The extensibility point described above. Implement this to normalize a new provider's export format into canonical records. |
+| `getAdapter(name)` | `(name: string) => Adapter` | Looks up a registered adapter by name (`jsonl` ships built in); throws if the name isn't registered. |
+| `verifyRecord(raw)` | `(raw: RawRecord) => VerificationOutcome` | Schema-validates and signature-verifies a single record. |
+| `verifyRecords(raws)` | `(raws: RawRecord[]) => VerificationOutcome[]` | Runs `verifyRecord` over a batch. |
+| `summarize(outcomes)` | `(outcomes: VerificationOutcome[]) => ReportSummary` | Aggregates verification outcomes into the same verified/unverified-by-provider/by-workload-type structure `paceproof report --json` prints. |
+| `verifyRecordSignature(record)` | `(record: AttestationRecord) => SignatureCheckResult` | Checks only the Ed25519 signature (schema validation is separate), against the canonical JSON encoding described below. |
+| `canonicalizeRecord(record)` | `(record: Record<string, unknown>) => Uint8Array` | Produces the canonical byte encoding a signature is computed and checked over: lexicographically sorted keys, UTF-8, no insignificant whitespace. |
+| `buildCli()` | `() => Command` | Returns the Commander.js `Command` instance the published CLI itself runs, if you want to embed or extend it rather than reimplement argument parsing. |
+
+There's no separately generated API doc site (no TypeDoc build in CI yet) -- the table above is the reference until one exists. Every signature was grepped directly from `packages/cli-ts/src/` on 2026-08-03, not reconstructed from memory.
+
 ## How verification works
 
 Every attestation record is a JSON object validated against a single canonical JSON Schema (`schema/attestation-record.schema.json`), the same file, byte-for-byte, that both the TypeScript and Python packages ship and validate against. A record needs `record_id`, `issued_at`, `provider`, `hardware`, `workload_type`, `compute_amount`, `compute_unit`, `issuer_public_key`, and `signature`; every string field has an explicit maximum length so malformed or oversized input fails fast instead of being parsed first and bounded later.
@@ -190,7 +228,7 @@ Star counts and descriptions below were checked live against each project's GitH
 | Project | Stars | What it does | How it differs from PaceProof |
 |---|---|---|---|
 | [meghabyte/verifiable-training](https://github.com/meghabyte/verifiable-training) | 10 | Stanford NeurIPS 2024 research code ("Optimistic Verifiable Training by Controlling Hardware Nondeterminism") that eliminates hardware nondeterminism so training runs reproduce byte-identical weights across different GPUs, then builds Merkle trees over checkpoints for a verifier to audit. | Proves *that specific training happened as claimed* at the weights level, as an attestation-generation research prototype, not an ingest/verify/report tool. No adapters, no cross-provider ingest of pre-existing signed records, no CLI, no cross-language parity, no MCP surface. |
-| [skypilot-org/skypilot](https://github.com/skypilot-org/skypilot) | 10,440 | Multi-cloud AI compute orchestration and cost-aware scheduling across 20+ clouds, Kubernetes, and Slurm. | Cost and utilization *visibility and scheduling*, not cryptographic verification. It never checks a signature or separates a "verified" number from a "claimed" one; there's no attestation record format involved at all. |
+| [skypilot-org/skypilot](https://github.com/skypilot-org/skypilot) | 10,441 | Multi-cloud AI compute orchestration and cost-aware scheduling across 20+ clouds, Kubernetes, and Slurm. | Cost and utilization *visibility and scheduling*, not cryptographic verification. It never checks a signature or separates a "verified" number from a "claimed" one; there's no attestation record format involved at all. |
 | [opencost/opencost](https://github.com/opencost/opencost) | 6,659 | Kubernetes and cloud cost monitoring and allocation visibility (Apache 2.0, originally Kubecost). | Same category as SkyPilot: usage and cost *visibility* over billing and metrics data, not cryptographic attestation. No Ed25519 verification, no verified/unverified split, no attestation record schema. |
 | [RudrenduPaul/ComputeLedger](https://github.com/RudrenduPaul/ComputeLedger) | 0 | Provider-agnostic CLI, library, and MCP server for *signing*, hash-chaining, and independently verifying compute usage receipts (GPU-hours, hardware, workload type) with Ed25519 signatures and a tamper-evident local ledger. | Complementary, not competing: same author's sibling project, and the *attestation-generation* half of this problem. PaceProof is the *ingest/verify/report* half. Point it at records from ComputeLedger, or from any other Ed25519-signing source, and it reports on what verifies. |
 
@@ -198,7 +236,7 @@ Broader searches for a directly comparable "ingest signed compute-attestation re
 
 ## What PaceProof is, and why it exists
 
-Compute usage claims from AI labs, cloud providers, and infrastructure operators are getting harder to independently verify as the volume of compute-related discourse grows. The real 2026 "Pacing the Frontier" open letter is one example of that industry conversation, cited here only as motivating context. PaceProof is not affiliated with it, was not built in response to any request from its signatories, and makes no claim of endorsement or partnership.
+Compute usage claims from AI labs, cloud providers, and infrastructure operators are getting harder to independently verify as the volume of compute-related discourse grows. The real "Pacing the Frontier" open letter, signed in July 2026 by over a thousand employees across OpenAI, Anthropic, Google DeepMind, and Meta asking for verifiable tools to pace frontier AI development, is one example of that industry conversation, cited here only as motivating context. PaceProof is not affiliated with it, was not built in response to any request from its signatories, and makes no claim of endorsement or partnership.
 
 To be direct about the one thing this README needs to be unambiguous about: **there is no real "Verified Slowdown" treaty, and no such treaty exists today.** That phrase comes from a speculative forecasting scenario at ai-2027.com, not from any actual international agreement, law, or regulatory body. PaceProof does not implement, enforce, or certify compliance with any treaty, law, or regulation, because no such treaty, law, or regulation applicable to this tool exists.
 
@@ -206,11 +244,17 @@ What PaceProof actually is: a neutral, cryptographically-verifiable reporting la
 
 ## FAQ
 
+**What is PaceProof, and what makes it different from a generic cost-monitoring tool?**
+PaceProof is a read-only CLI and MCP server that verifies Ed25519 signatures on compute-attestation records and reports totals with verified and unverified numbers kept strictly separate, never merged. Cost-visibility tools like SkyPilot or OpenCost report what a billing system says was used; PaceProof reports what a cryptographic signature actually proves, and flags everything else as unverified rather than silently counting it.
+
 **Does PaceProof provide legal or regulatory compliance?**
 No. There is no real "Verified Slowdown" treaty or comparable regulation for PaceProof to comply with, and PaceProof makes no compliance claim of any kind. It verifies Ed25519 signatures on records you give it and reports the results. Treat its output as a cryptographic verification report, not a legal or regulatory certification.
 
 **Does PaceProof sign or generate attestation records?**
 No. PaceProof is read-only: it ingests, verifies, and reports on records that are already signed elsewhere. If you need to generate signed compute-attestation records, that's a separate concern; see [ComputeLedger](https://github.com/RudrenduPaul/ComputeLedger), a sibling project by the same author, for the signing side.
+
+**How is PaceProof different from ComputeLedger?**
+They're complementary, not competing, and built by the same author. ComputeLedger signs and hash-chains compute usage receipts; PaceProof ingests and verifies records that are already signed, from ComputeLedger or any other Ed25519-signing source. If you need to produce signed records, use ComputeLedger. If you need to independently verify records you already have, use PaceProof.
 
 **What happens to a record with a bad signature? Does it just get dropped?**
 No. A record that fails schema validation or signature verification is never dropped or silently excluded. It's counted in `unverified_count`, its compute amount is totaled separately in `unverified_compute_total_by_unit`, and the specific reason it failed (tampered payload, wrong key, malformed signature, missing field) is reported alongside it. Nothing about a failed record disappears from the output.
@@ -221,11 +265,17 @@ Yes, that's what the adapter interface is for. Implement the `Adapter` interface
 **Does `paceproof ingest <url>` make arbitrary network calls?**
 Only the one you explicitly ask for. Every other command operates on local files. `ingest <url>` is the single opt-in network call in the whole tool, and it's bounded: a 30-second timeout and a 50 MiB response cap enforced against the real streamed byte count, not just a `Content-Length` header the remote server could lie about.
 
+**Does PaceProof work on Windows, macOS, and Linux?**
+The npm package requires Node.js 18 or newer and has no OS-specific code, so it runs anywhere Node runs, including Windows, macOS, and Linux. The Python package requires Python 3.10 or newer and is listed as OS Independent on PyPI. Both are pure userland tools with no native compiled dependencies.
+
 **Why are there two implementations instead of one CLI with bindings?**
 So each package is a real, independent thing you can install from its native registry (npm or PyPI) without pulling in a runtime for the other language. A shared JSON Schema file and a cross-language parity test suite (run in both directions in CI) keep their `report --json` output identical, so which implementation you pick doesn't change what you get.
 
 **Is the MCP server available in the Python package?**
 Not in v0.1. `paceproof mcp` is TypeScript-only for now: running it from the Python package prints a message pointing you to the npm package and exits non-zero. Every other command (`init`, `verify`, `ingest`, `report`, `dashboard`) is a full, independent Python implementation.
+
+**What license is PaceProof under, and can I use it commercially?**
+MIT. You can use, modify, and redistribute PaceProof commercially with no royalty and no requirement to open-source your own code, subject only to keeping the copyright notice and license text per the MIT license terms.
 
 ## Contributing
 

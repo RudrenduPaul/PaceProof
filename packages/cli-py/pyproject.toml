@@ -7,7 +7,7 @@ name = "paceproof-cli"
 version = "0.1.0"
 description = "CLI that verifies Ed25519-signed compute-attestation records from any provider and reports what compute was actually run, by whom, and whether every signature checks out. Read-only reporting layer -- does not sign or generate attestations."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "Rudrendu Paul" }]
 keywords = [
@@ -27,7 +27,6 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -65,7 +64,7 @@ testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 130
-target-version = "py39"
+target-version = "py310"
 
 [tool.ruff.lint.per-file-ignores]
 # dashboard.py's CSS block lives inside a triple-quoted f-string -- wrapping

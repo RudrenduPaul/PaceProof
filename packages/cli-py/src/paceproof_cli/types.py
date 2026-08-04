@@ -6,7 +6,7 @@ produce structurally identical --json output for the same input.
 
 from __future__ import annotations
 
-from typing import Any, Literal, TypedDict, Union
+from typing import Any, Literal, TypedDict
 
 WorkloadType = Literal["inference", "training", "idle", "unknown"]
 
@@ -36,7 +36,7 @@ class UnverifiedOutcome(TypedDict):
     reason: str
 
 
-VerificationOutcome = Union[VerifiedOutcome, UnverifiedOutcome]
+VerificationOutcome = VerifiedOutcome | UnverifiedOutcome
 
 
 class AggregateBucket(TypedDict):

@@ -45,7 +45,6 @@ describe('cross-language parity (TS report vs. Python CLI)', () => {
       throw new Error(`shared parity fixture missing: ${fixture}`);
     }
     if (!python || !pythonCliInstalled(python)) {
-      // eslint-disable-next-line no-console
       console.warn('Skipping cross-language parity check: paceproof_cli is not installed in this environment.');
       return;
     }

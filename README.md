@@ -9,6 +9,8 @@ PaceProof does not sign or generate attestations. It is a neutral, read-only ing
 [![PyPI](https://img.shields.io/pypi/v/paceproof-cli.svg)](https://pypi.org/project/paceproof-cli/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
+![PaceProof init and report: scaffolding an example attestation directory, then generating a verified/unverified compute report](docs/demo-init-report.gif)
+
 ## Install
 
 `paceproof-cli` is published to both npm and PyPI:
@@ -59,8 +61,6 @@ Both commands above were run against this repo's actual source as part of writin
 - **Security-hardened by design, not by afterthought.** Aggregation buckets are built with `Object.create(null)` so an attacker-controlled `provider` or `compute_unit` field like `"__proto__"` can't pollute `Object.prototype`. The one network call PaceProof ever makes (`ingest <url>`) is bounded by a 30-second timeout and a 50 MiB response cap, enforced against the actual streamed byte count rather than trusting a `Content-Length` header. Every schema field carries an explicit maximum length so oversized input can't be used to exhaust memory before validation runs.
 
 ## Quickstart
-
-![PaceProof init and report: scaffolding an example attestation directory, then generating a verified/unverified compute report](docs/demo-init-report.gif)
 
 ```
 paceproof init

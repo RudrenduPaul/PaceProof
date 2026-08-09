@@ -60,6 +60,8 @@ Both commands above were run against this repo's actual source as part of writin
 
 ## Quickstart
 
+![PaceProof init and report: scaffolding an example attestation directory, then generating a verified/unverified compute report](docs/demo-init-report.gif)
+
 ```
 paceproof init
 paceproof report ./paceproof-example
@@ -115,11 +117,15 @@ $ echo $?
 1
 ```
 
+![PaceProof verify: signature verification against a fresh example directory, then the same check with --json for structured output](docs/demo-verify-json.gif)
+
 Render a dashboard from the same data:
 
 ```
 paceproof dashboard ./paceproof-example --out dashboard.html
 ```
+
+![PaceProof ingest and dashboard: normalizing records to canonical JSONL with ingest --out, then rendering a self-contained HTML dashboard](docs/demo-ingest-dashboard.gif)
 
 Both the TypeScript and Python builds were run against `paceproof-example` for this README, and both produced the same verified/unverified counts and totals shown above.
 

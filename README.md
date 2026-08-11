@@ -1,3 +1,5 @@
+<!-- mcp-name: io.github.RudrenduPaul/paceproof -->
+
 # PaceProof
 
 [![CI](https://github.com/RudrenduPaul/PaceProof/actions/workflows/ci.yml/badge.svg)](https://github.com/RudrenduPaul/PaceProof/actions/workflows/ci.yml)

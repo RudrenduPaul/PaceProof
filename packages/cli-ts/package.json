@@ -1,6 +1,7 @@
 {
   "name": "paceproof-cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
+  "mcpName": "io.github.RudrenduPaul/paceproof",
   "description": "CLI + MCP server that verifies Ed25519-signed compute-attestation records from any provider and reports what compute was actually run, by whom, and whether every signature checks out. Read-only reporting layer -- does not sign or generate attestations.",
   "keywords": [
     "compute-attestation",

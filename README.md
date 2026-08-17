@@ -1,23 +1,27 @@
+<!-- mcp-name: io.github.RudrenduPaul/paceproof -->
+
 # PaceProof
 
-**PaceProof verifies Ed25519-signed compute-attestation records from any provider and tells you exactly which ones are real.** A record with a missing, malformed, or tampered signature never gets folded into a "verified" total; it's counted and reported separately, every time, in both human-readable and `--json` output.
+[![CI](https://github.com/RudrenduPaul/PaceProof/actions/workflows/ci.yml/badge.svg)](https://github.com/RudrenduPaul/PaceProof/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/paceproof-cli.svg)](https://www.npmjs.com/package/paceproof-cli)
+[![PyPI](https://img.shields.io/pypi/v/paceproof-cli.svg)](https://pypi.org/project/paceproof-cli/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+
+**PaceProof verifies Ed25519-signed compute-attestation records from any provider and tells you exactly which ones are real.**
+
+![PaceProof init and report: scaffolding an example attestation directory, then generating a verified/unverified compute report](docs/demo-init-report.gif)
+
+A record with a missing, malformed, or tampered signature never gets folded into a "verified" total; it's counted and reported separately, every time, in both human-readable and `--json` output.
 
 PaceProof does not sign or generate attestations. It is a neutral, read-only ingest/verify/report/dashboard layer over records that are already signed somewhere else. Point it at a directory, file, or URL of signed records and it tells you, verifiably, what compute was actually run, by whom, and whether every record's signature checks out.
 
-[![CI](https://github.com/RudrenduPaul/PaceProof/actions/workflows/ci.yml/badge.svg)](https://github.com/RudrenduPaul/PaceProof/actions/workflows/ci.yml)
-[![npm version](https://img.shields.io/npm/v/paceproof-cli.svg)](https://www.npmjs.com/package/paceproof-cli)
-[![PyPI version](https://img.shields.io/pypi/v/paceproof-cli.svg)](https://pypi.org/project/paceproof-cli/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-
-<!-- Terminal recording of installing paceproof-cli with npm, scaffolding example attestation records with paceproof init, and running paceproof report to show a verified/unverified compute breakdown. Demo GIF to be added at ./docs/demo.gif. -->
-
 ## Install
+
+`paceproof-cli` is published to both npm and PyPI:
 
 ```
 npm install -g paceproof-cli
-```
-
-```
+# or
 pip install paceproof-cli
 ```
 
@@ -58,15 +62,6 @@ Both the published `npm install -g paceproof-cli` and `pip install paceproof-cli
 - [FAQ](#faq)
 - [Contributing](#contributing)
 - [License](#license)
-
-## Features
-
-- **Pluggable data-source adapters.** `ingest` normalizes arbitrary input into the canonical schema through a documented `Adapter` interface (TypeScript interface, Python ABC). The shipped `jsonl` adapter reads newline-delimited JSON already in canonical form; a provider-specific adapter (e.g. for ComputeLedger's native export) implements the same interface without touching the aggregator, report renderer, or CLI wiring.
-- **Ed25519 verification with strict verified/unverified separation.** Every record is checked for schema validity and signature validity. A record that fails either check is never silently merged into a verified total: verified and unverified counts and compute totals are computed from disjoint sets and shown side by side in every report.
-- **Two independent, parity-tested implementations.** The TypeScript package (npm) and the Python package (PyPI) are separate, real implementations, not a wrapper around one or the other. Both produce byte-identical `report --json` output for the same input; a CI job runs the TypeScript CLI's output against the Python CLI's output on a shared fixture in both directions and fails the build on any divergence.
-- **Self-contained static HTML dashboard.** `paceproof dashboard` renders a single HTML file with inline CSS and no JavaScript: no CDN fonts, no external scripts, no remote requests of any kind. v0.1 ships one clean light theme; there's no dark-mode toggle yet.
-- **MCP server for agent invocation.** `paceproof mcp` starts a Model Context Protocol server exposing `verify`, `ingest`, and `report` as callable tools, so an orchestrating agent can call PaceProof programmatically instead of shelling out to a human-facing CLI. The tool handlers are thin wrappers around the same aggregator/report functions the CLI itself calls, with no separate reimplementation for the MCP path.
-- **Security-hardened by design, not by afterthought.** Aggregation buckets are built with `Object.create(null)` so an attacker-controlled `provider` or `compute_unit` field like `"__proto__"` can't pollute `Object.prototype`. The one network call PaceProof ever makes (`ingest <url>`) is bounded by a 30-second timeout and a 50 MiB response cap, enforced against the actual streamed byte count rather than trusting a `Content-Length` header. Every schema field carries an explicit maximum length so oversized input can't be used to exhaust memory before validation runs.
 
 ## Quickstart
 
@@ -125,13 +120,26 @@ $ echo $?
 1
 ```
 
+![PaceProof verify: signature verification against a fresh example directory, then the same check with --json for structured output](docs/demo-verify-json.gif)
+
 Render a dashboard from the same data:
 
 ```
 paceproof dashboard ./paceproof-example --out dashboard.html
 ```
 
+![PaceProof ingest and dashboard: normalizing records to canonical JSONL with ingest --out, then rendering a self-contained HTML dashboard](docs/demo-ingest-dashboard.gif)
+
 Both the TypeScript and Python builds were run against `paceproof-example` for this README, and both produced the same verified/unverified counts and totals shown above.
+
+## Features
+
+- **Pluggable data-source adapters.** `ingest` normalizes arbitrary input into the canonical schema through a documented `Adapter` interface (TypeScript interface, Python ABC). The shipped `jsonl` adapter reads newline-delimited JSON already in canonical form; a provider-specific adapter (e.g. for ComputeLedger's native export) implements the same interface without touching the aggregator, report renderer, or CLI wiring.
+- **Ed25519 verification with strict verified/unverified separation.** Every record is checked for schema validity and signature validity. A record that fails either check is never silently merged into a verified total: verified and unverified counts and compute totals are computed from disjoint sets and shown side by side in every report.
+- **Two independent, parity-tested implementations.** The TypeScript package (npm) and the Python package (PyPI) are separate, real implementations, not a wrapper around one or the other. Both produce byte-identical `report --json` output for the same input; a CI job runs the TypeScript CLI's output against the Python CLI's output on a shared fixture in both directions and fails the build on any divergence.
+- **Self-contained static HTML dashboard.** `paceproof dashboard` renders a single HTML file with inline CSS and no JavaScript: no CDN fonts, no external scripts, no remote requests of any kind. Currently ships one clean light theme; there's no dark-mode toggle yet.
+- **MCP server for agent invocation.** `paceproof mcp` starts a Model Context Protocol server exposing `verify`, `ingest`, and `report` as callable tools, so an orchestrating agent can call PaceProof programmatically instead of shelling out to a human-facing CLI. The tool handlers are thin wrappers around the same aggregator/report functions the CLI itself calls, with no separate reimplementation for the MCP path.
+- **Security-hardened by design, not by afterthought.** Aggregation buckets are built with `Object.create(null)` so an attacker-controlled `provider` or `compute_unit` field like `"__proto__"` can't pollute `Object.prototype`. The one network call PaceProof ever makes (`ingest <url>`) is bounded by a 30-second timeout and a 50 MiB response cap, enforced against the actual streamed byte count rather than trusting a `Content-Length` header. Every schema field carries an explicit maximum length so oversized input can't be used to exhaust memory before validation runs.
 
 ## CLI command reference
 
@@ -183,7 +191,7 @@ Render a single self-contained static HTML dashboard from a report.
 
 ### `paceproof mcp`
 
-Start an MCP server exposing `verify`, `ingest`, and `report` as callable tools. TypeScript package only in v0.1: running `paceproof mcp` from the Python package prints a message pointing to the npm package and exits non-zero.
+Start an MCP server exposing `verify`, `ingest`, and `report` as callable tools. TypeScript package only for now: running `paceproof mcp` from the Python package prints a message pointing to the npm package and exits non-zero.
 
 Every command supports real non-zero exit codes on failure or verification failure, and `--help` on every subcommand.
 
@@ -272,7 +280,7 @@ The npm package requires Node.js 18 or newer and has no OS-specific code, so it 
 So each package is a real, independent thing you can install from its native registry (npm or PyPI) without pulling in a runtime for the other language. A shared JSON Schema file and a cross-language parity test suite (run in both directions in CI) keep their `report --json` output identical, so which implementation you pick doesn't change what you get.
 
 **Is the MCP server available in the Python package?**
-Not in v0.1. `paceproof mcp` is TypeScript-only for now: running it from the Python package prints a message pointing you to the npm package and exits non-zero. Every other command (`init`, `verify`, `ingest`, `report`, `dashboard`) is a full, independent Python implementation.
+Not currently. `paceproof mcp` is TypeScript-only for now: running it from the Python package prints a message pointing you to the npm package and exits non-zero. Every other command (`init`, `verify`, `ingest`, `report`, `dashboard`) is a full, independent Python implementation.
 
 **What license is PaceProof under, and can I use it commercially?**
 MIT. You can use, modify, and redistribute PaceProof commercially with no royalty and no requirement to open-source your own code, subject only to keeping the copyright notice and license text per the MIT license terms.

@@ -6,4 +6,17 @@ aggregator, and report renderer that ship in the npm package `paceproof-cli`
 -- not a subprocess wrapper around it. See ARCHITECTURE.md.
 """
 
-__version__ = "0.1.0"
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    # Single source of truth: read the version from the installed
+    # distribution's metadata (which hatchling derives from pyproject.toml's
+    # [project].version) instead of duplicating it as a hardcoded string that
+    # can drift out of sync -- see the equivalent fix for the TypeScript
+    # package's src/version.ts.
+    __version__ = version("paceproof-cli")
+except PackageNotFoundError:
+    # Editable/uninstalled checkout (e.g. running straight from source
+    # without `pip install`): fall back to a clearly-labeled placeholder
+    # rather than a stale hardcoded version string.
+    __version__ = "0.0.0-dev"

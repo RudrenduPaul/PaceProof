@@ -5,8 +5,7 @@ import { writeFileSync } from 'node:fs';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { getAdapter } from './adapters/jsonl.js';
 import { buildReport } from './report.js';
-
-const VERSION = '0.1.0';
+import { VERSION } from './version.js';
 
 /**
  * The MCP `ingest` tool's `out` parameter is a write primitive an

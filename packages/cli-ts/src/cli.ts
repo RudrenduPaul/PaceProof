@@ -6,8 +6,7 @@ import { renderDashboardHtml } from './dashboard.js';
 import { scaffoldExample } from './init.js';
 import { startMcpServer } from './mcp.js';
 import type { RawRecord } from './types.js';
-
-const VERSION = '0.1.0';
+import { VERSION } from './version.js';
 
 async function readRecordsFromPath(input: string, adapterName: string): Promise<RawRecord[]> {
   const adapter = getAdapter(adapterName);

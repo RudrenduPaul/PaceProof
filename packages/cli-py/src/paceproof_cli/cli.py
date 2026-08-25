@@ -15,13 +15,14 @@ from typing import Any
 
 import click
 
+from . import __version__
 from .adapters import get_adapter
 from .dashboard import render_dashboard_html
 from .init import scaffold_example
 from .report import build_report, render_human_readable
 from .types import RawRecord
 
-VERSION = "0.1.0"
+VERSION = __version__
 
 
 def _read_records(path: str, adapter_name: str) -> list[RawRecord]:

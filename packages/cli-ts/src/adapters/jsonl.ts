@@ -48,7 +48,7 @@ async function fetchUrlWithBounds(url: string): Promise<string> {
     return Buffer.concat(chunks).toString('utf-8');
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
-      throw new Error(`Failed to fetch ${url}: request timed out after ${INGEST_URL_TIMEOUT_MS}ms`);
+      throw new Error(`Failed to fetch ${url}: request timed out after ${INGEST_URL_TIMEOUT_MS}ms`, { cause: err });
     }
     throw err;
   } finally {

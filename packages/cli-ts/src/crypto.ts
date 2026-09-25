@@ -7,11 +7,10 @@ import type { AttestationRecord } from './types.js';
  * a synchronous verify() -- suitable for CLI use where async/await ceremony
  * would only add noise. tweetnacl was the other option considered; @noble was
  * chosen for its API and smaller footprint. Since v2 it ships without a
- * bundled hash function, so its sha512 hook has to be wired to
+ * bundled hash function, so its sha512 hook (hashes.sha512 in v3) has to be wired to
  * @noble/hashes explicitly before the sync sign()/verify() calls can run.
  */
-ed.etc.sha512Sync = (...messages: Uint8Array[]): Uint8Array =>
-  sha512(ed.etc.concatBytes(...messages));
+ed.hashes.sha512 = (message: Uint8Array): Uint8Array<ArrayBuffer> => sha512(message) as Uint8Array<ArrayBuffer>;
 
 const SIGNED_FIELDS = [
   'record_id',
@@ -167,7 +166,7 @@ export interface GeneratedKeypair {
 
 /** Generates a fresh Ed25519 keypair, used by `paceproof init`. */
 export function generateKeypair(): GeneratedKeypair {
-  const privateKey = ed.utils.randomPrivateKey();
+  const privateKey = ed.utils.randomSecretKey();
   const publicKey = ed.getPublicKey(privateKey);
   return {
     publicKeyBase64: Buffer.from(publicKey).toString('base64'),
